@@ -1,6 +1,13 @@
-import { Post, Body, Controller } from '@nestjs/common';
+import {
+  Post,
+  Body,
+  Controller,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
 import { FirebaseService } from 'src/firebase/firebase.service';
 import { AuthService } from './auth.service';
+import { SignupDto } from './dto/signup.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -10,30 +17,51 @@ export class AuthController {
   ) {}
 
   @Post('signup')
-  async signup(@Body() body: { email: string; password: string }) {
-    return this.authService.signup(body.email, body.password);
+  async signup(@Body() signupDto: SignupDto) {
+    try {
+      const response = await this.authService.signup(signupDto);
+      return response;
+    } catch (error) {
+      throw new HttpException(
+        {
+          statusCode: error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+          message: error.response?.message || 'Signup failed',
+          error: error.response?.error || error.message,
+        },
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @Post('login')
   async login(@Body() body: { email: string; password: string }) {
-    return this.authService.login(body.email, body.password);
-  }
-
-  @Post('verify-token')
-  async verifyToken(@Body('token') token: string) {
     try {
-      const decodedToken = await this.firebaseService
-        .getAuth()
-        .verifyIdToken(token);
-      return { uid: decodedToken.uid, email: decodedToken.email };
+      return await this.authService.login(body.email, body.password);
     } catch (error) {
-      console.log(error);
-      throw new Error('Invalid token');
+      throw new HttpException(
+        {
+          statusCode: error.status || HttpStatus.UNAUTHORIZED,
+          message: error.response?.message || 'Login failed',
+          error: error.response?.error || error.message,
+        },
+        error.status || HttpStatus.UNAUTHORIZED,
+      );
     }
   }
 
   @Post('refresh-token')
   async refreshToken(@Body('refreshToken') refreshToken: string) {
-    return this.authService.refreshToken(refreshToken);
+    try {
+      return this.authService.refreshToken(refreshToken);
+    } catch (error) {
+      throw new HttpException(
+        {
+          statusCode: error.status || HttpStatus.UNAUTHORIZED,
+          message: error.response?.message || 'Failed to refresh token',
+          error: error.response?.error || error.message,
+        },
+        error.status || HttpStatus.UNAUTHORIZED,
+      );
+    }
   }
 }
